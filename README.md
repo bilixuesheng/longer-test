@@ -17,3 +17,7 @@
 | 结尾 | 文字红块擦除、圆环收回，`windowOpacity` 1→0（1000ms InCubic） |
 
 页面里的控制台可以拖动时间轴逐帧查看、改事件名称 / 时间 / 闪烁次数、0.25× 慢放，并列出每个图层对应的 QPainter 写法。
+
+## Qt 实现
+
+`qt/` 目录是同一套动画的 Qt 版本：`EventPointFullscreenReminder` 类、可以 `git apply` 到 Universal-Timer 的补丁，以及一个独立预览程序。详见 [qt/README.md](qt/README.md)。
