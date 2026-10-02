@@ -1,0 +1,92 @@
+diff --git a/src/core/UniversalTimer2.cpp b/src/core/UniversalTimer2.cpp
+index deb6cf2..333dae1 100644
+--- a/src/core/UniversalTimer2.cpp
++++ b/src/core/UniversalTimer2.cpp
+@@ -48,8 +48,13 @@ UniversalTimer2::UniversalTimer2(QObject* parent)
+     refresh();
+ 
+     // Connections
+-    timer.start(config.general.update_interval);
+-    connect(&timer, &QTimer::timeout, this, &UniversalTimer2::updateObjects);
++    timer.setSingleShot(true);
++    timer.setTimerType(Qt::PreciseTimer);
++    connect(&timer, &QTimer::timeout, this, [this] {
++        updateObjects();
++        scheduleNextUpdate();
++    });
++    scheduleNextUpdate();
+ 
+ }
+ 
+@@ -93,6 +98,15 @@ void UniversalTimer2::refresh() {
+     qDebug() << "刷新结束";
+ }
+ 
++// 安排下一次更新
++// 原来是普通的重复计时器，触发时刻可能贴着整秒，前后抖几毫秒就会跳过或重复某一秒：
++// 悬浮条的秒数会跳，按整秒比对的全屏提醒时间和事件点也可能被错过。改成每次都在下一个整 update_interval 刚过 50ms 时触发
++void UniversalTimer2::scheduleNextUpdate() {
++    const int interval = qMax(1, int(config.general.update_interval));
++    const int now = QTime::currentTime().msecsSinceStartOfDay();
++    timer.start(interval - now % interval + 50);
++}
++
+ // 更新函数
+ // 悬浮条更新函数
+ void UniversalTimer2::updateFloatingBar() {
+diff --git a/src/core/UniversalTimer2.h b/src/core/UniversalTimer2.h
+index 8fa3193..57493b6 100644
+--- a/src/core/UniversalTimer2.h
++++ b/src/core/UniversalTimer2.h
+@@ -26,6 +26,7 @@ private:
+     // 更新
+     void updateFloatingBar(); // 更新悬浮条
+     void updateObjects(); // 更新对象
++    void scheduleNextUpdate(); // 安排下一次更新：下一个整 update_interval 刚过 50ms
+ 
+ 
+     // 屏幕分辨率
+diff --git a/src/ui/EventPointReminder.cpp b/src/ui/EventPointReminder.cpp
+index d5c6d59..c36e55e 100644
+--- a/src/ui/EventPointReminder.cpp
++++ b/src/ui/EventPointReminder.cpp
+@@ -123,10 +123,19 @@ void EventPointReminder::showReminder()
+     this->show();
+     m_fadeInGroup->start();
+     m_timer = new QTimer(this);
+-    m_timer->start(1000);
++    m_timer->setSingleShot(true);
++    m_timer->setTimerType(Qt::PreciseTimer);
+     connect(m_timer, &QTimer::timeout, this, [this]() {
+         updateLabel();
+     });
++    scheduleNextTick();
++}
++
++void EventPointReminder::scheduleNextTick()
++{
++    // 原来是每 1000ms 一次的普通（粗精度）计时器，触发时刻可能贴着整秒，前后抖几毫秒就会落到整秒的另一边，
++    // secsTo() 算出的数字就会跳过一个或重复一个。改成每次都在下一个整秒刚过 50ms 时触发
++    m_timer->start(1000 - QTime::currentTime().msec() + 50);
+ }
+ 
+ void EventPointReminder::updateLabel()
+@@ -151,6 +160,7 @@ void EventPointReminder::updateLabel()
+     // 这时 start() 不会重新开始，数字就停在透明度 0，整整一秒看不到。先 stop() 再 start() 保证每秒都从头播放
+     m_countdownGroup->stop();
+     m_countdownGroup->start();
++    scheduleNextTick();
+ }
+ 
+ void EventPointReminder::resizeEvent(QResizeEvent* event)
+diff --git a/src/ui/EventPointReminder.h b/src/ui/EventPointReminder.h
+index 8a382e6..72f6f54 100644
+--- a/src/ui/EventPointReminder.h
++++ b/src/ui/EventPointReminder.h
+@@ -64,4 +64,5 @@ private:
+     void updateLabel();
+     void setupAnimation();
+     void showReminder();
++    void scheduleNextTick(); // 安排下一次更新：下一个整秒刚过 50ms
+ };
+\ No newline at end of file

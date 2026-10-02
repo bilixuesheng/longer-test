@@ -27,3 +27,4 @@
 - [fixes/capsule-width](fixes/capsule-width/README.md)：事件点胶囊在展开阶段不变宽、不居中的问题。补丁要在 `qt/integration.patch` 之后应用，也有 Windows 一键应用包。
 - [fixes/countdown-blink](fixes/countdown-blink/README.md)：事件点倒计时数字隔一秒消失一次的问题（基于 Universal-Timer 最新的 `0466a01`），也有一键应用包。
 - [fixes/countdown-fade](fixes/countdown-fade/README.md)：数字淡入淡出时整个胶囊跟着变透明的问题（在 countdown-blink 之后应用，一键包会顺带补上 `stop()`）。
+- [fixes/second-skip](fixes/second-skip/README.md)：倒计时 / 悬浮条偶尔跳秒或重复，事件点和定时提醒偶尔不弹出或弹出两次（在 countdown-fade 之后应用，一键包不依赖前面的修复）。
