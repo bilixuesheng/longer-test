@@ -25,3 +25,4 @@
 ## 修复
 
 - [fixes/capsule-width](fixes/capsule-width/README.md)：事件点胶囊在展开阶段不变宽、不居中的问题。补丁要在 `qt/integration.patch` 之后应用，也有 Windows 一键应用包。
+- [fixes/countdown-blink](fixes/countdown-blink/README.md)：事件点倒计时数字隔一秒消失一次的问题（基于 Universal-Timer 最新的 `0466a01`），也有一键应用包。

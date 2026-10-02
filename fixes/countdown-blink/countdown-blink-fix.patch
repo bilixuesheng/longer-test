@@ -1,0 +1,14 @@
+diff --git a/src/ui/EventPointReminder.cpp b/src/ui/EventPointReminder.cpp
+index b47d5e6..1451d15 100644
+--- a/src/ui/EventPointReminder.cpp
++++ b/src/ui/EventPointReminder.cpp
+@@ -143,6 +143,9 @@ void EventPointReminder::updateLabel()
+     m_adjustAnimation->setStartValue(this->geometry());
+     m_adjustAnimation->setEndValue(QRect((desktop.width() - ((labelWidth + 30) > (desktop.width() * 0.05) ? (labelWidth + 30) : (desktop.width() * 0.05))) / 2, desktop.height() * 0.1, (labelWidth + 30) > (desktop.width() * 0.05) ? (labelWidth + 30) : (desktop.width() * 0.05), this->height()));
+     m_adjustAnimation->start();
++    // 数字动画（250 + 500 + 250）正好 1 秒，和计时器间隔一样长；计时器稍微早到时动画还没结束，
++    // 这时 start() 不会重新开始，数字就停在透明度 0，整整一秒看不到。先 stop() 再 start() 保证每秒都从头播放
++    m_countdownGroup->stop();
+     m_countdownGroup->start();
+ }
+ 
