@@ -21,3 +21,7 @@
 ## Qt 实现
 
 `qt/` 目录是同一套动画的 Qt 版本：`EventPointFullscreenReminder` 类、可以 `git apply` 到 Universal-Timer 的补丁，以及一个独立预览程序。详见 [qt/README.md](qt/README.md)。
+
+## 修复
+
+- [fixes/capsule-width](fixes/capsule-width/README.md)：事件点胶囊在展开阶段不变宽、不居中的问题。补丁要在 `qt/integration.patch` 之后应用，也有 Windows 一键应用包。
