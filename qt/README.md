@@ -16,7 +16,7 @@
 
 ## 接入 Universal-Timer
 
-**不会用 git 的话**：用 `one-click/` 里的一键应用包（Windows）。把整个文件夹放进 Universal-Timer 项目文件夹，双击 `apply.bat`，再在 Qt Creator 里重新运行 CMake 即可；双击 `undo.bat` 撤销。它做的修改与下面的补丁逐字节相同，改之前会备份原文件；如果项目代码和预期对不上，会提示是哪一步，并且一个文件都不改。
+**不会用 git 的话**：用 `one-click/` 里的一键应用包。把整个文件夹放进 Universal-Timer 项目文件夹，Linux 在该文件夹里运行 `bash apply.sh`，Windows 双击 `apply.bat`，然后重新编译即可；`undo.sh` / `undo.bat` 撤销。它做的修改与下面的补丁逐字节相同，改之前会备份原文件；如果项目代码和预期对不上，会提示是哪一步，并且一个文件都不改。
 
 **会用 git 的话**，在 Universal-Timer 仓库根目录：
 
