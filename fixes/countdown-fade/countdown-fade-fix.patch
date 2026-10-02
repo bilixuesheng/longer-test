@@ -1,0 +1,71 @@
+diff --git a/src/ui/EventPointReminder.cpp b/src/ui/EventPointReminder.cpp
+index 1451d15..d5c6d59 100644
+--- a/src/ui/EventPointReminder.cpp
++++ b/src/ui/EventPointReminder.cpp
+@@ -1,6 +1,8 @@
+ #include "EventPointReminder.h"
+ #include "../core/Global.h"
+ 
++#include <QPainter>
++
+ EventPointReminder::EventPointReminder(QWidget* parent, const EventPoint& eventPoint)
+     : QLabel(parent), m_eventPoint(eventPoint)
+ {
+@@ -11,13 +13,15 @@ EventPointReminder::EventPointReminder(QWidget* parent, const EventPoint& eventP
+ 
+ void EventPointReminder::setupUI()
+ {
+-    this->setStyleSheet("background-color: rgba(0, 0, 0, 0.75); color: white; border-left: 5px solid red; border-right: 5px solid red;");
++    // 黑底和左右红边在 paintEvent 里画，样式表只管文字颜色（会继承给 m_label）
++    this->setStyleSheet("color: white;");
+     this->setAlignment(Qt::AlignCenter);
+     this->setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+     this->setAttribute(Qt::WA_TranslucentBackground);
+ 
+     m_label = new QLabel(this);
+     m_label->setAlignment(Qt::AlignCenter);
++    m_label->setContentsMargins(5, 0, 5, 0); // 让出左右红边，数字的位置和 sizeHint 与以前一致
+     QFont font;
+     font.setFamilies({ "DIN1451", "Bahnschrift", "Barlow Condensed", "Arial Narrow" });
+     font.setPixelSize(desktop.width() * 0.05 * GOLDEN_RATIO_INV);
+@@ -152,7 +156,17 @@ void EventPointReminder::updateLabel()
+ void EventPointReminder::resizeEvent(QResizeEvent* event)
+ {
+     QLabel::resizeEvent(event);
+-    // 胶囊本身设置了 WA_TranslucentBackground，Qt 不会绘制它自己的样式表背景和红边，
+-    // 屏幕上看到的黑底红边其实是 m_label。让 m_label 始终铺满胶囊，展开和宽度变化的动画才能完整显示
++    // m_label 始终铺满胶囊，数字才能在整个胶囊里居中
+     m_label->setGeometry(this->rect());
++}
++
++void EventPointReminder::paintEvent(QPaintEvent* event)
++{
++    Q_UNUSED(event);
++    // 胶囊设置了 WA_TranslucentBackground，Qt 不会替它画样式表背景，所以黑底和红边在这里自己画。
++    // 这样 m_label 只有数字，数字上的 QGraphicsOpacityEffect 就不会带着整个胶囊一起变透明
++    QPainter painter(this);
++    painter.fillRect(this->rect(), QColor(0, 0, 0, 191)); // rgba(0, 0, 0, 0.75)
++    painter.fillRect(QRect(0, 0, 5, this->height()), Qt::red);
++    painter.fillRect(QRect(this->width() - 5, 0, 5, this->height()), Qt::red);
+ }
+\ No newline at end of file
+diff --git a/src/ui/EventPointReminder.h b/src/ui/EventPointReminder.h
+index 4a57223..8a382e6 100644
+--- a/src/ui/EventPointReminder.h
++++ b/src/ui/EventPointReminder.h
+@@ -12,6 +12,7 @@
+ #include <QApplication>
+ #include <QScreen>
+ #include <QResizeEvent>
++#include <QPaintEvent>
+ 
+ class EventPointReminder : public QLabel
+ {
+@@ -23,6 +24,7 @@ public:
+ protected:
+ 
+     void resizeEvent(QResizeEvent* event) override;
++    void paintEvent(QPaintEvent* event) override;
+ 
+ Q_SIGNALS:
+ 
