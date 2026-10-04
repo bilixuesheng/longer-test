@@ -1,0 +1,204 @@
+diff --git a/src/ui/FullscreenPagesManager.cpp b/src/ui/FullscreenPagesManager.cpp
+index 065c82d..ac3431d 100644
+--- a/src/ui/FullscreenPagesManager.cpp
++++ b/src/ui/FullscreenPagesManager.cpp
+@@ -4,6 +4,8 @@
+ #include "ui/WelcomePage.h"
+ 
+ #include <QTimer>
++#include <QApplication>
++#include <QInputMethod>
+ 
+ FullscreenPagesManager::FullscreenPagesManager(QWidget* parent, ConfigManager& cfg, FloatingBarClass* bar)
+     : QWidget(parent), config(cfg), FloatingBar(bar)
+@@ -99,6 +101,10 @@ void FullscreenPagesManager::showSettings() {
+     if (fullscreen_pages_mode == FullscreenPagesMode::None) {
+         fullscreen_pages_mode = FullscreenPagesMode::Settings;
+         startAnimation();
++        // 本窗口是 Qt::Tool，在 Windows 上显示时不会被激活（SW_SHOWNOACTIVATE），
++        // 没有焦点窗口时触摸点击输入框发出的触摸键盘请求会被 Qt 丢弃，所以设置页要主动激活窗口
++        this->raise();
++        this->activateWindow();
+     }
+ }
+ 
+@@ -115,6 +121,21 @@ void FullscreenPagesManager::startAnimation() {
+     SlideInOutAnimationGroup->start();
+ }
+ 
++void FullscreenPagesManager::changeEvent(QEvent* event) {
++    QWidget::changeEvent(event);
++
++    // 窗口被激活时，如果焦点已经在输入框上（例如激活前的那次触摸点击已经把焦点给了输入框，
++    // 但当时窗口还没激活，触摸键盘请求被丢弃了），补发一次显示虚拟键盘的请求
++    if (event->type() == QEvent::ActivationChange && this->isActiveWindow() && fullscreen_pages_mode == FullscreenPagesMode::Settings) {
++        // 等 Qt 把焦点交给输入框之后再请求
++        QTimer::singleShot(0, this, [this] {
++            QWidget* focus_widget = QApplication::focusWidget();
++            if (this->isActiveWindow() && focus_widget && this->isAncestorOf(focus_widget) && focus_widget->testAttribute(Qt::WA_InputMethodEnabled))
++                QGuiApplication::inputMethod()->show();
++            });
++    }
++}
++
+ void FullscreenPagesManager::resizeEvent(QResizeEvent* event) {
+     QWidget::resizeEvent(event);
+ 
+diff --git a/src/ui/FullscreenPagesManager.h b/src/ui/FullscreenPagesManager.h
+index 80243c0..77f878c 100644
+--- a/src/ui/FullscreenPagesManager.h
++++ b/src/ui/FullscreenPagesManager.h
+@@ -22,6 +22,7 @@ public:
+ 
+ protected:
+     void resizeEvent(QResizeEvent* event) override;
++    void changeEvent(QEvent* event) override;
+ 
+ private:
+ 
+diff --git a/src/ui/SettingsContent.cpp b/src/ui/SettingsContent.cpp
+index f6f7f2a..f06e723 100644
+--- a/src/ui/SettingsContent.cpp
++++ b/src/ui/SettingsContent.cpp
+@@ -4,6 +4,8 @@
+ #include <QListView>
+ #include <QFormLayout>
+ #include <QMessageBox>
++#include <QToolButton>
++#include <QTextCharFormat>
+ 
+ SettingsContentClass::SettingsContentClass(QWidget* parent, ConfigManager& cfg, FloatingBarClass* bar)
+     : QStackedWidget(parent), config(cfg), FloatingBar(bar)
+@@ -41,6 +43,31 @@ void SettingsContentClass::initializeObjects() {
+     TargetDateTimeEdit = new QDateTimeEdit(config.general.target_date_time, GeneralSettingsPage);
+     TargetDateTimeEdit->setCalendarPopup(true);
+     TargetDateTimeEdit->setDisplayFormat("yyyy-MM-dd HH:mm:ss"); // 设置显示格式
++    // 目标时间的日历弹窗（默认弹窗太小、星期栏看不清，还会继承设置页的透明背景，这里换成自定义样式）
++    TargetDateTimeCalendar = new QCalendarWidget(TargetDateTimeEdit);
++    TargetDateTimeCalendar->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader); // 不显示周数
++    TargetDateTimeCalendar->setHorizontalHeaderFormat(QCalendarWidget::ShortDayNames);
++    TargetDateTimeCalendar->setGridVisible(false);
++    QTextCharFormat CalendarHeaderTextFormat; // 星期栏
++    CalendarHeaderTextFormat.setBackground(QColor(255, 0, 0, 64));
++    CalendarHeaderTextFormat.setForeground(QColor(255, 255, 255));
++    TargetDateTimeCalendar->setHeaderTextFormat(CalendarHeaderTextFormat);
++    QTextCharFormat CalendarWeekendTextFormat; // 周末
++    CalendarWeekendTextFormat.setForeground(QColor(255, 110, 110));
++    TargetDateTimeCalendar->setWeekdayTextFormat(Qt::Saturday, CalendarWeekendTextFormat);
++    TargetDateTimeCalendar->setWeekdayTextFormat(Qt::Sunday, CalendarWeekendTextFormat);
++    // 上一月、下一月按钮用文字箭头代替系统图标
++    if (QToolButton* PrevMonthButton = TargetDateTimeCalendar->findChild<QToolButton*>("qt_calendar_prevmonth")) {
++        PrevMonthButton->setIcon(QIcon());
++        PrevMonthButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
++        PrevMonthButton->setText("<");
++    }
++    if (QToolButton* NextMonthButton = TargetDateTimeCalendar->findChild<QToolButton*>("qt_calendar_nextmonth")) {
++        NextMonthButton->setIcon(QIcon());
++        NextMonthButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
++        NextMonthButton->setText(">");
++    }
++    TargetDateTimeEdit->setCalendarWidget(TargetDateTimeCalendar);
+     LanguageComboBox = new QComboBox(GeneralSettingsPage);
+ 
+     // Floating Bar
+@@ -213,8 +240,72 @@ void SettingsContentClass::connectEmissions() {
+ 
+ }
+ 
++// 调整目标时间日历弹窗的大小和样式（随设置页高度缩放，格子足够大，方便触摸点选）
++void SettingsContentClass::adjustTargetDateTimeCalendar() {
++    const int unit = this->height() * 0.03; // 和输入框高度保持一致
++    TargetDateTimeCalendar->setMinimumSize(unit * 2 * 7, unit * 1.6 * 8);
++    TargetDateTimeCalendar->setStyleSheet(QString(R"(
++            QCalendarWidget QWidget {
++                background-color: rgb(40, 0, 0);
++                color: white;
++            }
++            QCalendarWidget QWidget#qt_calendar_navigationbar {
++                background-color: rgb(80, 0, 0);
++            }
++            QCalendarWidget QToolButton {
++                background-color: transparent;
++                color: white;
++                border: none;
++                border-radius: %1px;
++                padding: %2px %3px;
++            }
++            QCalendarWidget QToolButton:hover {
++                background-color: rgba(255, 0, 0, 0.3);
++            }
++            QCalendarWidget QToolButton:pressed {
++                background-color: rgba(255, 0, 0, 0.5);
++            }
++            QCalendarWidget QToolButton::menu-indicator {
++                image: none;
++                width: 0px;
++            }
++            QCalendarWidget QMenu {
++                background-color: rgb(40, 0, 0);
++                color: white;
++                border: none;
++            }
++            QCalendarWidget QMenu::item {
++                padding: %2px %3px;
++            }
++            QCalendarWidget QMenu::item:selected {
++                background-color: rgb(100, 0, 0);
++            }
++            QCalendarWidget QSpinBox {
++                background-color: rgba(255, 0, 0, 0.25);
++                color: white;
++                border: none;
++                border-radius: %1px;
++                selection-background-color: red;
++            }
++            QCalendarWidget QAbstractItemView {
++                background-color: rgb(40, 0, 0);
++                color: white;
++                selection-background-color: red;
++                selection-color: white;
++                outline: none;
++                border: none;
++            }
++            QCalendarWidget QAbstractItemView:disabled {
++                color: rgb(120, 80, 80);
++            }
++        )").arg(unit / 4).arg(unit / 6).arg(unit / 3)
++    );
++}
++
+ void SettingsContentClass::resizeEvent(QResizeEvent* event) {
+     QStackedWidget::resizeEvent(event);
++
++    adjustTargetDateTimeCalendar();
+     
+     QFont font;
+     font.setPixelSize(this->height() * 0.025);
+diff --git a/src/ui/SettingsContent.h b/src/ui/SettingsContent.h
+index ca8c450..7da327c 100644
+--- a/src/ui/SettingsContent.h
++++ b/src/ui/SettingsContent.h
+@@ -10,6 +10,7 @@
+ #include <QCheckBox>
+ #include <QLineEdit>
+ #include <QDateTimeEdit>
++#include <QCalendarWidget>
+ #include <QComboBox>
+ #include <QSpinBox>
+ #include <QPushButton>
+@@ -44,6 +45,7 @@ private:
+ 
+     void initializeObjects();
+     void connectEmissions();
++    void adjustTargetDateTimeCalendar();
+ 
+     // Config
+     ConfigManager& config;
+@@ -61,6 +63,7 @@ private:
+     // Settings Items
+     // General
+     QDateTimeEdit* TargetDateTimeEdit;
++    QCalendarWidget* TargetDateTimeCalendar;
+     QComboBox* LanguageComboBox;
+ 
+     // Floating Bar
