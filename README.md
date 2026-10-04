@@ -28,3 +28,7 @@
 - [fixes/countdown-blink](fixes/countdown-blink/README.md)：事件点倒计时数字隔一秒消失一次的问题（基于 Universal-Timer 最新的 `0466a01`），也有一键应用包。
 - [fixes/countdown-fade](fixes/countdown-fade/README.md)：数字淡入淡出时整个胶囊跟着变透明的问题（在 countdown-blink 之后应用，一键包会顺带补上 `stop()`）。
 - [fixes/second-skip](fixes/second-skip/README.md)：倒计时 / 悬浮条偶尔跳秒或重复，事件点和定时提醒偶尔不弹出或弹出两次（在 countdown-fade 之后应用，一键包不依赖前面的修复）。
+
+## 新功能
+
+- [features/floating-bar](features/floating-bar/README.md)：参考 ClassIsland 2，给顶部悬浮条加上鼠标移入淡化、鼠标点击穿透（都默认开启）、不透明度、Win11 样式（浅色 / 深色 / 跟随系统）和距顶边距离设置（基于 Universal-Timer 最新的 `a86dbfc`，打过 second-skip 也能用；有 Linux 一键包）。

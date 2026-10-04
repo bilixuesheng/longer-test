@@ -1,0 +1,477 @@
+diff --git a/src/core/ConfigManager.cpp b/src/core/ConfigManager.cpp
+index d3ecf3e..6ebdb7d 100644
+--- a/src/core/ConfigManager.cpp
++++ b/src/core/ConfigManager.cpp
+@@ -30,6 +30,12 @@ void ConfigManager::read() {
+         floating_bar.floating_bar_border_radius = Settings.value("floating_bar_border_radius", 10).toUInt();
+         floating_bar.floating_bar_height = Settings.value("floating_bar_height", 50).toUInt();
+         floating_bar.floating_bar_text = Settings.value("floating_bar_text", "距会考还剩：").toString();
++        floating_bar.floating_bar_top_margin = Settings.value("floating_bar_top_margin", 0).toUInt();
++        floating_bar.floating_bar_opacity = Settings.value("floating_bar_opacity", 100).toUInt();
++        floating_bar.is_mouse_in_fading_enabled = Settings.value("is_mouse_in_fading_enabled", true).toBool();
++        floating_bar.is_mouse_click_through_enabled = Settings.value("is_mouse_click_through_enabled", true).toBool();
++        floating_bar.floating_bar_style = static_cast<FloatingBarStyle>(Settings.value("floating_bar_style", static_cast<int>(FloatingBarStyle::Default)).toInt());
++        floating_bar.floating_bar_theme = static_cast<FloatingBarTheme>(Settings.value("floating_bar_theme", static_cast<int>(FloatingBarTheme::FollowSystem)).toInt());
+         Settings.endGroup();
+ 
+         Settings.beginGroup("reminder");
+@@ -93,6 +99,12 @@ void ConfigManager::write() {
+     Settings.setValue("floating_bar_border_radius", floating_bar.floating_bar_border_radius);
+     Settings.setValue("floating_bar_height", floating_bar.floating_bar_height);
+     Settings.setValue("floating_bar_text", floating_bar.floating_bar_text);
++    Settings.setValue("floating_bar_top_margin", floating_bar.floating_bar_top_margin);
++    Settings.setValue("floating_bar_opacity", floating_bar.floating_bar_opacity);
++    Settings.setValue("is_mouse_in_fading_enabled", floating_bar.is_mouse_in_fading_enabled);
++    Settings.setValue("is_mouse_click_through_enabled", floating_bar.is_mouse_click_through_enabled);
++    Settings.setValue("floating_bar_style", static_cast<int>(floating_bar.floating_bar_style));
++    Settings.setValue("floating_bar_theme", static_cast<int>(floating_bar.floating_bar_theme));
+     Settings.endGroup();
+ 
+     Settings.beginGroup("reminder");
+diff --git a/src/core/ConfigManager.h b/src/core/ConfigManager.h
+index a6684e2..1777500 100644
+--- a/src/core/ConfigManager.h
++++ b/src/core/ConfigManager.h
+@@ -11,6 +11,17 @@ enum class FloatingBarPosition {
+     TopRight
+ };
+ 
++enum class FloatingBarStyle {
++    Default, // 默认样式
++    Win11 // 仿 Win11 样式
++};
++
++enum class FloatingBarTheme {
++    FollowSystem, // 跟随系统
++    Light, // 浅色
++    Dark // 深色
++};
++
+ 
+ class ConfigManager
+ {
+@@ -30,6 +41,12 @@ private:
+         unsigned floating_bar_border_radius = 10; // 悬浮条圆角，默认10
+         unsigned floating_bar_height = 50; // 悬浮条高度，默认50
+         QString floating_bar_text = "距会考还剩："; // 悬浮条文本
++        unsigned floating_bar_top_margin = 0; // 悬浮条距屏幕顶边距离，默认0
++        unsigned floating_bar_opacity = 100; // 悬浮条不透明度（百分比），默认100
++        bool is_mouse_in_fading_enabled = true; // 鼠标移入时淡化，默认开启
++        bool is_mouse_click_through_enabled = true; // 鼠标点击穿透，默认开启
++        FloatingBarStyle floating_bar_style = FloatingBarStyle::Default; // 悬浮条样式，默认样式
++        FloatingBarTheme floating_bar_theme = FloatingBarTheme::FollowSystem; // 悬浮条深浅色（仅 Win11 样式），默认跟随系统
+     };
+ 
+     struct ReminderConfigItems {
+diff --git a/src/core/UniversalTimer2.cpp b/src/core/UniversalTimer2.cpp
+index deb6cf2..00d0c0e 100644
+--- a/src/core/UniversalTimer2.cpp
++++ b/src/core/UniversalTimer2.cpp
+@@ -16,7 +16,7 @@ UniversalTimer2::UniversalTimer2(QObject* parent)
+     desktop = QApplication::primaryScreen()->geometry();
+ 
+     // Floating Bar
+-    FloatingBar = new FloatingBarClass;
++    FloatingBar = new FloatingBarClass(config);
+ 
+     // Fullscreen Pages
+     FullscreenPages = new FullscreenPagesManager(nullptr, config, FloatingBar);
+@@ -78,12 +78,13 @@ void UniversalTimer2::refresh() {
+     // Floating Bar
+     if (!config.floating_bar.is_show_floating_bar) FloatingBar->hide();
+     else FloatingBar->show();
+-    FloatingBar->Bar->setStyleSheet("background: rgba(255, 255, 255, 0.75); border-radius: " + QString::number(config.floating_bar.floating_bar_border_radius) + "px; color: red;"); // 更新悬浮条样式
+-    FloatingBar->setWindowFlags((config.floating_bar.floating_bar_on_top ? Qt::WindowStaysOnTopHint : Qt::WindowStaysOnBottomHint) | Qt::FramelessWindowHint | Qt::Tool);
+-    FloatingBar->setFixedHeight(config.floating_bar.floating_bar_height);
++    FloatingBar->updateWindowFlags(); // 更新悬浮条层级和点击穿透
++    FloatingBar->Bar->resize(FloatingBar->Bar->width(), config.floating_bar.floating_bar_height);
+     QFont font;
+     font.setPixelSize(config.floating_bar.floating_bar_height * GOLDEN_RATIO_INV);
+     FloatingBar->Bar->setFont(font);
++    FloatingBar->updateStyle(); // 更新悬浮条样式（以及大小和位置）
++    FloatingBar->updateOpacity(); // 更新悬浮条不透明度和鼠标移入淡化
+ 
+     // Reminder
+     if (config.reminder.is_show_reminder) {
+@@ -102,20 +103,9 @@ void UniversalTimer2::updateFloatingBar() {
+     // 更新大小
+     FloatingBar->Bar->adjustSize();
+     FloatingBar->Bar->resize(FloatingBar->Bar->width() + 20, config.floating_bar.floating_bar_height);
+-    FloatingBar->adjustSize();
+-
+-    // 更新位置
+-    switch (config.floating_bar.floating_bar_position) {
+-        case FloatingBarPosition::TopCenter:
+-            FloatingBar->move((desktop.width() - FloatingBar->width()) / 2, 0);
+-            break;
+-        case FloatingBarPosition::TopRight:
+-            FloatingBar->move(desktop.width() - FloatingBar->width(), 0);
+-            break;
+-        case FloatingBarPosition::TopLeft:
+-            FloatingBar->move(0, 0);
+-            break;
+-    }
++
++    // 更新位置（以及窗口大小，Win11 样式要给阴影留位置）
++    FloatingBar->updatePosition();
+ }
+ 
+ // 更新函数
+diff --git a/src/ui/FloatingBar.cpp b/src/ui/FloatingBar.cpp
+index e246fbc..1ff4b82 100644
+--- a/src/ui/FloatingBar.cpp
++++ b/src/ui/FloatingBar.cpp
+@@ -1,7 +1,21 @@
+ #include "FloatingBar.h"
+ 
+-FloatingBarClass::FloatingBarClass(QWidget* parent)
+-    : QWidget(parent)
++#include <QApplication>
++#include <QScreen>
++#include <QCursor>
++#include <QStyleHints>
++#include <QWindow>
++
++// 鼠标移入时的不透明度和渐变时长，与 ClassIsland 一致
++static constexpr double MOUSE_IN_FADED_OPACITY = 0.05;
++static constexpr int OPACITY_ANIMATION_DURATION = 100;
++
++// Win11 样式的阴影，参考 ClassIsland Fluent 主题的 BoxShadow="0 4 8 2 #48000000"
++static constexpr int SHADOW_BLUR_RADIUS = 16;
++static constexpr int SHADOW_OFFSET_Y = 4;
++
++FloatingBarClass::FloatingBarClass(ConfigManager& cfg, QWidget* parent)
++    : QWidget(parent), config(cfg)
+ {
+     this->setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+     this->setAttribute(Qt::WA_TranslucentBackground); // 设置窗口背景透明
+@@ -10,7 +24,162 @@ FloatingBarClass::FloatingBarClass(QWidget* parent)
+     Bar->setAlignment(Qt::AlignCenter);
+     Bar->setStyleSheet("font-family: Microsoft YaHei UI, Microsoft YaHei; background: rgba(255, 255, 255, 0.75); color: red;");
+     Bar->show();
++
++    m_shadowEffect = new QGraphicsDropShadowEffect(Bar);
++    m_shadowEffect->setColor(QColor(0, 0, 0, 0x48));
++    m_shadowEffect->setOffset(0, SHADOW_OFFSET_Y);
++    m_shadowEffect->setBlurRadius(SHADOW_BLUR_RADIUS);
++    m_shadowEffect->setEnabled(false);
++    Bar->setGraphicsEffect(m_shadowEffect);
++
++    m_opacityAnimation = new QPropertyAnimation(this, "windowOpacity", this);
++    m_opacityAnimation->setDuration(OPACITY_ANIMATION_DURATION);
++
++    m_mouseTimer = new QTimer(this);
++    m_mouseTimer->setInterval(50);
++    connect(m_mouseTimer, &QTimer::timeout, this, &FloatingBarClass::updateMouseStatus);
++
++#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
++    // 系统切换深浅色时，跟随系统的 Win11 样式跟着变
++    connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, &FloatingBarClass::updateStyle);
++#endif
+ }
+ 
+ FloatingBarClass::~FloatingBarClass()
+-{}
+\ No newline at end of file
++{}
++
++bool FloatingBarClass::isDarkTheme() const
++{
++    switch (config.floating_bar.floating_bar_theme) {
++        case FloatingBarTheme::Light: return false;
++        case FloatingBarTheme::Dark: return true;
++        default: break;
++    }
++#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
++    return QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
++#else
++    return false;
++#endif
++}
++
++void FloatingBarClass::updateStyle()
++{
++    const QString radius = QString::number(config.floating_bar.floating_bar_border_radius);
++    if (config.floating_bar.floating_bar_style == FloatingBarStyle::Win11) {
++        // 仿 Win11（参考 ClassIsland 的 Fluent 主题）：只换背景——纯色底、1px 描边（底边稍深）、圆角和阴影，文字不变
++        const bool dark = isDarkTheme();
++        Bar->setStyleSheet(QString("background: %1; border: 1px solid %2; border-bottom-color: %3; border-radius: %4px; color: red;")
++            .arg(dark ? "rgb(28, 28, 28)" : "rgb(238, 238, 238)",
++                 dark ? "rgba(255, 255, 255, 0.07)" : "rgba(0, 0, 0, 0.06)",
++                 dark ? "rgba(255, 255, 255, 0.09)" : "rgba(0, 0, 0, 0.16)",
++                 radius));
++        m_shadowEffect->setEnabled(true);
++    }
++    else {
++        Bar->setStyleSheet("background: rgba(255, 255, 255, 0.75); border-radius: " + radius + "px; color: red;");
++        m_shadowEffect->setEnabled(false);
++    }
++    updatePosition();
++}
++
++void FloatingBarClass::updateWindowFlags()
++{
++    Qt::WindowFlags flags = (config.floating_bar.floating_bar_on_top ? Qt::WindowStaysOnTopHint : Qt::WindowStaysOnBottomHint) | Qt::FramelessWindowHint | Qt::Tool;
++    if (config.floating_bar.is_mouse_click_through_enabled)
++        flags |= Qt::WindowTransparentForInput; // 鼠标点击直接穿过悬浮条
++    if (flags == this->windowFlags())
++        return;
++    const bool visible = this->isVisible();
++    this->setWindowFlags(flags);
++    if (visible)
++        this->show(); // 修改窗口标志会把窗口隐藏
++}
++
++void FloatingBarClass::showEvent(QShowEvent* event)
++{
++    QWidget::showEvent(event);
++    m_isClickThroughPending = true;
++}
++
++void FloatingBarClass::paintEvent(QPaintEvent* event)
++{
++    QWidget::paintEvent(event);
++    // 第一次画出来时窗口已经真正显示了（已被窗口管理器接管），这时再设置一次点击穿透
++    if (m_isClickThroughPending) {
++        m_isClickThroughPending = false;
++        QTimer::singleShot(0, this, &FloatingBarClass::reapplyClickThrough);
++    }
++}
++
++void FloatingBarClass::reapplyClickThrough()
++{
++    // Linux 上 XFCE 的 xfwm4 会给窗口套一层外框，它只在接管窗口之后收到点击穿透（输入区域）的变化时才会让外框也跟着穿透，
++    // 而 Qt 是在窗口隐藏时设置的，所以窗口显示后在这里关一下再开一下。Windows 没有这个问题
++    if (QGuiApplication::platformName() != "xcb" || !config.floating_bar.is_mouse_click_through_enabled || !this->isVisible() || !this->windowHandle())
++        return;
++    this->windowHandle()->setFlag(Qt::WindowTransparentForInput, false);
++    this->windowHandle()->setFlag(Qt::WindowTransparentForInput, true);
++}
++
++void FloatingBarClass::updateOpacity()
++{
++    const bool fading = config.floating_bar.is_mouse_in_fading_enabled;
++    if (fading && !m_mouseTimer->isActive())
++        m_mouseTimer->start();
++    else if (!fading && m_mouseTimer->isActive())
++        m_mouseTimer->stop();
++    if (!fading)
++        m_isMouseIn = false;
++
++    double opacity = qBound(0u, config.floating_bar.floating_bar_opacity, 100u) / 100.0;
++    if (m_isMouseIn)
++        opacity = qMin(opacity, MOUSE_IN_FADED_OPACITY);
++
++    m_opacityAnimation->stop();
++    m_opacityAnimation->setStartValue(this->windowOpacity());
++    m_opacityAnimation->setEndValue(opacity);
++    m_opacityAnimation->start();
++}
++
++void FloatingBarClass::updateMouseStatus()
++{
++    // 开了点击穿透后窗口收不到鼠标事件，所以和 ClassIsland 一样直接查询鼠标位置；触摸也会移动鼠标位置，处理方式相同
++    const bool mouseIn = this->isVisible() && QRect(Bar->mapToGlobal(QPoint(0, 0)), Bar->size()).contains(QCursor::pos());
++    if (mouseIn != m_isMouseIn) {
++        m_isMouseIn = mouseIn;
++        updateOpacity();
++    }
++}
++
++void FloatingBarClass::updatePosition()
++{
++    const QRect desktop = QApplication::primaryScreen()->geometry();
++
++    // Win11 样式的阴影画在 Bar 外面，窗口四周要留出位置；贴着屏幕边的那一侧不留，悬浮条本身的位置不变
++    QMargins margins;
++    if (m_shadowEffect->isEnabled()) {
++        margins = QMargins(SHADOW_BLUR_RADIUS, SHADOW_BLUR_RADIUS - SHADOW_OFFSET_Y, SHADOW_BLUR_RADIUS, SHADOW_BLUR_RADIUS + SHADOW_OFFSET_Y);
++        margins.setTop(qMin(margins.top(), int(config.floating_bar.floating_bar_top_margin)));
++        if (config.floating_bar.floating_bar_position == FloatingBarPosition::TopLeft)
++            margins.setLeft(0);
++        if (config.floating_bar.floating_bar_position == FloatingBarPosition::TopRight)
++            margins.setRight(0);
++    }
++
++    Bar->move(margins.left(), margins.top());
++    this->resize(Bar->width() + margins.left() + margins.right(), Bar->height() + margins.top() + margins.bottom());
++
++    int x = 0;
++    switch (config.floating_bar.floating_bar_position) {
++        case FloatingBarPosition::TopCenter:
++            x = (desktop.width() - Bar->width()) / 2;
++            break;
++        case FloatingBarPosition::TopRight:
++            x = desktop.width() - Bar->width();
++            break;
++        case FloatingBarPosition::TopLeft:
++            x = 0;
++            break;
++    }
++    this->move(x - margins.left(), int(config.floating_bar.floating_bar_top_margin) - margins.top());
++}
+diff --git a/src/ui/FloatingBar.h b/src/ui/FloatingBar.h
+index 36a0d9c..6bef021 100644
+--- a/src/ui/FloatingBar.h
++++ b/src/ui/FloatingBar.h
+@@ -1,6 +1,13 @@
+ #pragma once
+ 
++#include "../core/ConfigManager.h"
++
+ #include <QLabel>
++#include <QTimer>
++#include <QPropertyAnimation>
++#include <QGraphicsDropShadowEffect>
++#include <QShowEvent>
++#include <QPaintEvent>
+ 
+ 
+ class FloatingBarClass : public QWidget
+@@ -8,8 +15,32 @@ class FloatingBarClass : public QWidget
+     Q_OBJECT
+ 
+ public:
+-    FloatingBarClass(QWidget* parent = nullptr);
++    FloatingBarClass(ConfigManager& cfg, QWidget* parent = nullptr);
+     ~FloatingBarClass();
+ 
+     QLabel* Bar;
+-};
+\ No newline at end of file
++
++    void updateStyle(); // 按配置更新背景样式（样式、深浅色、圆角、阴影），并更新大小和位置
++    void updateWindowFlags(); // 按配置更新窗口层级和点击穿透
++    void updateOpacity(); // 按配置更新不透明度（平时 / 鼠标移入时淡化）
++    void updatePosition(); // 按 Bar 的大小、悬浮条位置和距顶边距离更新窗口大小和位置
++
++protected:
++
++    void showEvent(QShowEvent* event) override;
++    void paintEvent(QPaintEvent* event) override;
++
++private:
++
++    ConfigManager& config;
++
++    QGraphicsDropShadowEffect* m_shadowEffect; // Win11 样式的阴影
++    QPropertyAnimation* m_opacityAnimation; // 不透明度渐变
++    QTimer* m_mouseTimer; // 定时查询鼠标位置（开了点击穿透后窗口收不到鼠标事件）
++    bool m_isMouseIn = false;
++    bool m_isClickThroughPending = false; // 显示后还没有重新设置过点击穿透
++
++    bool isDarkTheme() const;
++    void updateMouseStatus();
++    void reapplyClickThrough();
++};
+diff --git a/src/ui/SettingsContent.cpp b/src/ui/SettingsContent.cpp
+index f6f7f2a..444beae 100644
+--- a/src/ui/SettingsContent.cpp
++++ b/src/ui/SettingsContent.cpp
+@@ -62,6 +62,24 @@ void SettingsContentClass::initializeObjects() {
+     FloatingBarBorderRadiusSpinBox->setRange(0, config.floating_bar.floating_bar_height / 2);
+     FloatingBarBorderRadiusSpinBox->setValue(config.floating_bar.floating_bar_border_radius);
+     FloatingBarBorderRadiusSpinBox->setSuffix(tr(" 像素")); // 悬浮条圆角半径后缀文本
++    FloatingBarTopMarginSpinBox = new QSpinBox(FloatingBarSettingsPage);
++    FloatingBarTopMarginSpinBox->setRange(0, 5714);
++    FloatingBarTopMarginSpinBox->setValue(config.floating_bar.floating_bar_top_margin);
++    FloatingBarTopMarginSpinBox->setSuffix(tr(" 像素")); // 悬浮条距顶边距离后缀文本
++    FloatingBarOpacitySpinBox = new QSpinBox(FloatingBarSettingsPage);
++    FloatingBarOpacitySpinBox->setRange(0, 100);
++    FloatingBarOpacitySpinBox->setValue(config.floating_bar.floating_bar_opacity);
++    FloatingBarOpacitySpinBox->setSuffix(tr(" %")); // 悬浮条不透明度后缀文本
++    FloatingBarStyleComboBox = new QComboBox(FloatingBarSettingsPage);
++    FloatingBarStyleComboBox->addItems({tr("默认"), tr("Win11")});
++    FloatingBarStyleComboBox->setCurrentIndex(config.floating_bar.floating_bar_style == FloatingBarStyle::Win11 ? 1 : 0);
++    FloatingBarThemeComboBox = new QComboBox(FloatingBarSettingsPage);
++    FloatingBarThemeComboBox->addItems({tr("跟随系统"), tr("浅色"), tr("深色")});
++    FloatingBarThemeComboBox->setCurrentIndex(config.floating_bar.floating_bar_theme == FloatingBarTheme::Light ? 1 : (config.floating_bar.floating_bar_theme == FloatingBarTheme::Dark ? 2 : 0));
++    IsMouseInFadingCheckBox = new QCheckBox(tr("鼠标移入时淡化"), FloatingBarSettingsPage);
++    IsMouseInFadingCheckBox->setChecked(config.floating_bar.is_mouse_in_fading_enabled);
++    IsMouseClickThroughCheckBox = new QCheckBox(tr("鼠标点击穿透"), FloatingBarSettingsPage);
++    IsMouseClickThroughCheckBox->setChecked(config.floating_bar.is_mouse_click_through_enabled);
+ 
+     // Reminder
+     IsShowReminderCheckBox = new QCheckBox(tr("是否显示全屏提醒"), ReminderSettingsPage);
+@@ -113,6 +131,12 @@ void SettingsContentClass::initializeObjects() {
+     FloatingBarSettingsPageLayout->addRow(tr("悬浮条位置："), FloatingBarPositionComboBox);
+     FloatingBarSettingsPageLayout->addRow(tr("悬浮条高度："), FloatingBarHeightSpinBox);
+     FloatingBarSettingsPageLayout->addRow(tr("悬浮条圆角半径："), FloatingBarBorderRadiusSpinBox);
++    FloatingBarSettingsPageLayout->addRow(tr("悬浮条距顶边距离："), FloatingBarTopMarginSpinBox);
++    FloatingBarSettingsPageLayout->addRow(tr("悬浮条不透明度："), FloatingBarOpacitySpinBox);
++    FloatingBarSettingsPageLayout->addRow(tr("悬浮条样式："), FloatingBarStyleComboBox);
++    FloatingBarSettingsPageLayout->addRow(tr("Win11 样式深浅色："), FloatingBarThemeComboBox);
++    FloatingBarSettingsPageLayout->addRow(IsMouseInFadingCheckBox);
++    FloatingBarSettingsPageLayout->addRow(IsMouseClickThroughCheckBox);
+     FloatingBarSettingsPageLayout->setContentsMargins(25, 25, 25, 25);
+     FloatingBarSettingsPage->setLayout(FloatingBarSettingsPageLayout);
+ 
+@@ -160,7 +184,7 @@ void SettingsContentClass::connectEmissions() {
+         });
+     connect(FloatingBarLevelComboBox, &QComboBox::currentIndexChanged, this, [this](int index) {
+         config.set(config.floating_bar.floating_bar_on_top, index == 0);
+-        FloatingBar->setWindowFlags((config.floating_bar.floating_bar_on_top ? Qt::WindowStaysOnTopHint : Qt::WindowStaysOnBottomHint) | Qt::FramelessWindowHint | Qt::Tool);
++        FloatingBar->updateWindowFlags();
+         FloatingBar->hide();
+         FloatingBar->show();
+ #ifdef Q_OS_WIN
+@@ -174,15 +198,40 @@ void SettingsContentClass::connectEmissions() {
+         });
+     connect(FloatingBarHeightSpinBox, &QSpinBox::valueChanged, this, [this](int value) {
+         config.set(config.floating_bar.floating_bar_height, value);
+-        FloatingBar->setFixedHeight(value);
++        FloatingBar->Bar->resize(FloatingBar->Bar->width(), value);
+         QFont font;
+         font.setPixelSize(value * GOLDEN_RATIO_INV);
+         FloatingBar->Bar->setFont(font);
++        FloatingBar->updatePosition();
+         FloatingBarBorderRadiusSpinBox->setMaximum(value / 2);
+         });
+     connect(FloatingBarBorderRadiusSpinBox, &QSpinBox::valueChanged, this, [this](int value) {
+         config.set(config.floating_bar.floating_bar_border_radius, value);
+-        FloatingBar->Bar->setStyleSheet("background: rgba(255, 255, 255, 0.75); border-radius: " + QString::number(value) + "px; color: red;"); // 更新悬浮条样式
++        FloatingBar->updateStyle(); // 更新悬浮条样式
++        });
++    connect(FloatingBarTopMarginSpinBox, &QSpinBox::valueChanged, this, [this](int value) {
++        config.set(config.floating_bar.floating_bar_top_margin, value);
++        FloatingBar->updatePosition();
++        });
++    connect(FloatingBarOpacitySpinBox, &QSpinBox::valueChanged, this, [this](int value) {
++        config.set(config.floating_bar.floating_bar_opacity, value);
++        FloatingBar->updateOpacity();
++        });
++    connect(FloatingBarStyleComboBox, &QComboBox::currentIndexChanged, this, [this](int index) {
++        config.set(config.floating_bar.floating_bar_style, index == 1 ? FloatingBarStyle::Win11 : FloatingBarStyle::Default);
++        FloatingBar->updateStyle();
++        });
++    connect(FloatingBarThemeComboBox, &QComboBox::currentIndexChanged, this, [this](int index) {
++        config.set(config.floating_bar.floating_bar_theme, index == 1 ? FloatingBarTheme::Light : (index == 2 ? FloatingBarTheme::Dark : FloatingBarTheme::FollowSystem));
++        FloatingBar->updateStyle();
++        });
++    connect(IsMouseInFadingCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
++        config.set(config.floating_bar.is_mouse_in_fading_enabled, checked);
++        FloatingBar->updateOpacity();
++        });
++    connect(IsMouseClickThroughCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
++        config.set(config.floating_bar.is_mouse_click_through_enabled, checked);
++        FloatingBar->updateWindowFlags();
+         });
+ 
+     // Reminder
+diff --git a/src/ui/SettingsContent.h b/src/ui/SettingsContent.h
+index ca8c450..23b6447 100644
+--- a/src/ui/SettingsContent.h
++++ b/src/ui/SettingsContent.h
+@@ -70,6 +70,12 @@ private:
+     QComboBox* FloatingBarPositionComboBox;
+     QSpinBox* FloatingBarHeightSpinBox;
+     QSpinBox* FloatingBarBorderRadiusSpinBox;
++    QSpinBox* FloatingBarTopMarginSpinBox;
++    QSpinBox* FloatingBarOpacitySpinBox;
++    QComboBox* FloatingBarStyleComboBox;
++    QComboBox* FloatingBarThemeComboBox;
++    QCheckBox* IsMouseInFadingCheckBox;
++    QCheckBox* IsMouseClickThroughCheckBox;
+ 
+     // Reminder
+     QCheckBox* IsShowReminderCheckBox;
