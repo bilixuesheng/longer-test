@@ -32,3 +32,4 @@
 ## 新功能
 
 - [features/floating-bar](features/floating-bar/README.md)：参考 ClassIsland 2，给顶部悬浮条加上鼠标移入淡化、鼠标点击穿透（都默认开启）、不透明度、Win11 样式（浅色 / 深色 / 跟随系统）和距顶边距离设置（基于 Universal-Timer 最新的 `a86dbfc`，打过 second-skip 也能用；有 Linux 一键包）。
+- [features/floating-bar-hide-rules](features/floating-bar-hide-rules/README.md)：参考 ClassIsland 2 的“隐藏窗口”，按条件自动隐藏悬浮条：基础模式（前台是最大化 / 全屏窗口时）和高级模式（规则集：前台窗口标题 / 类名 / 进程 / 状态、时间段、星期、剩余天数，可组合、反转）。在 floating-bar 之后应用，有 Linux 一键包。
