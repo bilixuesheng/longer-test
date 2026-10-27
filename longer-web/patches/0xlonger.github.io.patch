@@ -1,0 +1,970 @@
+From 8e9b081deafc2f0d5805357516b5968b3ce5e480 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 27 Oct 2026 15:34:11 +0000
+Subject: [PATCH] =?UTF-8?q?feat:=20=E6=8E=A8=E8=8D=90=E5=86=85=E5=AE=B9?=
+ =?UTF-8?q?=E5=8A=A0=E5=85=A5=20LongerMC=20=E5=AE=98=E6=96=B9=E6=8E=A8?=
+ =?UTF-8?q?=E8=8D=90=E5=8D=A1=E7=89=87?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- 推荐内容最上方新增 LongerMC 官方卡片：外框跟随本站（圆角、描边、发光、悬停放大），
+  里面是 mc.longer.xin 的像素风（夜空、草方块、像素字、硬边按钮），带「官方」标签，和第三方推荐区分开
+- 卡片可一键复制服务器地址；卡片滚动到附近时才请求一次在线人数，请求失败就不显示
+- 页脚友情链接加入 LongerMC（官方）
+- 新增 Press Start 2P 像素字体（SIL OFL，与 mc.longer.xin 用的是同一个文件）
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01R6Z6vJ75XWiDY6trSfA3Nr
+---
+ css/style.css                                 | 344 ++++++++++++++++++
+ fonts/Press Start 2P/OFL.txt                  |  93 +++++
+ .../Press Start 2P/PressStart2P-Regular.woff2 | Bin 0 -> 12512 bytes
+ js/ad.js                                      |  78 +++-
+ partials/ad.html                              | 113 ++++++
+ partials/footer.html                          |   1 +
+ 6 files changed, 628 insertions(+), 1 deletion(-)
+ create mode 100644 fonts/Press Start 2P/OFL.txt
+ create mode 100644 fonts/Press Start 2P/PressStart2P-Regular.woff2
+
+diff --git a/css/style.css b/css/style.css
+index 4371055..3a521c3 100644
+--- a/css/style.css
++++ b/css/style.css
+@@ -88,6 +88,12 @@ html[data-theme="dark"] .btn.github {
+     font-family: 'Maple Mono loaded';
+     src: url('/fonts/Maple\ Mono/MapleMono-NF-CN-Regular.ttf') format('truetype');
+ }
++/* 像素字体，只给 LongerMC 卡片用（和 mc.longer.xin 同一个字体） */
++@font-face {
++    font-family: 'Press Start 2P';
++    src: url('/fonts/Press\ Start\ 2P/PressStart2P-Regular.woff2') format('woff2');
++    font-display: swap;
++}
+ 
+ 
+ body {
+@@ -873,6 +879,344 @@ footer ul li a:hover {
+ 
+ 
+ 
++
++/* 官方推荐：LongerMC 服务器卡片
++   外框跟随本站：圆角、描边、发光、悬停放大
++   里面是 mc.longer.xin 的风格：深色夜空、像素字、硬边按钮、草方块
++   绿色是 MC 站的身份色，只在这张卡片和页脚的“官方”标签里使用 */
++.lmc {
++    --lmc-grass: #63c94a;
++    --lmc-grass-2: #8ae66c;
++    --lmc-text: #eef2f8;
++    --lmc-muted: #8d99ac;
++    --lmc-line: #333d4f;
++    --lmc-pixel: 'Press Start 2P', ui-monospace, monospace;
++    position: relative;
++    display: grid;
++    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
++    margin-top: 36px;
++    overflow: hidden;
++    color: var(--lmc-text);
++    background-color: #0a0d12;
++    background-image:
++        radial-gradient(720px 380px at 82% -12%, rgba(99, 201, 74, 0.16), transparent 62%),
++        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
++        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
++    background-size: auto, 44px 44px, 44px 44px;
++    border: 2px solid var(--lmc-grass);
++    border-radius: 20px;
++    box-shadow: 0 3px 30px rgba(99, 201, 74, 0.45);
++    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
++}
++.lmc:hover {
++    transform: scale(1.02);
++    box-shadow: 0 3px 50px rgba(99, 201, 74, 0.7);
++}
++/* 卡片底部的像素山丘 */
++.lmc::after {
++    content: '';
++    position: absolute;
++    left: 0;
++    right: 0;
++    bottom: 0;
++    height: 40px;
++    pointer-events: none;
++    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 40' preserveAspectRatio='none'%3E%3Cpath d='M0 22H70V12H140V20H210V6H280V16H350V2H420V18H490V10H560V22H630V8H700V18H770V4H840V14H910V24H980V10H1050V18H1120V6H1200V40H0Z' fill='%23142619'/%3E%3Cpath d='M0 30H90V24H180V32H270V20H360V28H450V18H540V30H630V22H720V32H810V20H900V26H990V16H1080V28H1200V40H0Z' fill='%23214a26'/%3E%3C/svg%3E") center bottom / 100% 100% no-repeat;
++}
++.lmc-body {
++    position: relative;
++    z-index: 1;
++    padding: 34px 36px 66px;
++}
++.lmc-tags {
++    display: flex;
++    align-items: center;
++    gap: 10px;
++    font-size: 0.85rem;
++    color: var(--lmc-muted);
++}
++.lmc-official {
++    padding: 1px 8px;
++    font-weight: 700;
++    color: #08130a;
++    background: var(--lmc-grass);
++    border: 1px solid #0a1207;
++    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.4);
++}
++.lmc-wordmark {
++    margin-top: 22px;
++    font-family: var(--lmc-pixel);
++    font-size: 1.6rem;
++    line-height: 1.2;
++    letter-spacing: 1px;
++    text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
++}
++.lmc-wordmark em {
++    font-style: normal;
++    color: var(--lmc-grass-2);
++}
++.lmc h3 {
++    margin-top: 14px;
++    font-size: 1.2rem;
++    font-weight: 800;
++    line-height: 1.5;
++    text-wrap: balance;
++}
++.lmc h3 span {
++    color: var(--lmc-grass-2);
++}
++.lmc-desc {
++    max-width: 520px;
++    margin-top: 8px;
++    font-size: 0.92rem;
++    color: var(--lmc-muted);
++}
++/* 服务器地址（同 mc.longer.xin 的地址卡片） */
++.lmc-ip {
++    position: relative;
++    display: flex;
++    align-items: center;
++    gap: 14px;
++    max-width: 460px;
++    margin-top: 22px;
++    padding: 11px 12px 11px 17px;
++    background: linear-gradient(180deg, rgba(25, 32, 44, 0.94), rgba(15, 19, 27, 0.94));
++    border: 1px solid var(--lmc-line);
++    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 5px 5px 0 rgba(0, 0, 0, 0.3);
++}
++.lmc-ip::before {
++    content: '';
++    position: absolute;
++    left: 0;
++    top: 0;
++    bottom: 0;
++    width: 3px;
++    background: linear-gradient(180deg, var(--lmc-grass-2), #3f8f2f);
++}
++.lmc-ip-text {
++    display: flex;
++    flex-direction: column;
++    gap: 7px;
++    flex: 1;
++    min-width: 0;
++}
++.lmc-label {
++    font-family: var(--lmc-pixel);
++    font-size: 7px;
++    line-height: 1;
++    letter-spacing: 1.2px;
++    color: #76839a;
++}
++.lmc-ip code {
++    font-family: inherit;
++    font-size: 1.05rem;
++    line-height: 1.3;
++    color: #fff;
++    word-break: break-all;
++}
++.lmc-copy {
++    display: inline-flex;
++    align-items: center;
++    gap: 6px;
++    flex: none;
++    padding: 8px 12px;
++    font: inherit;
++    font-size: 0.8rem;
++    font-weight: 700;
++    color: var(--lmc-grass-2);
++    background: rgba(99, 201, 74, 0.1);
++    border: 1px solid rgba(99, 201, 74, 0.35);
++    cursor: pointer;
++    transition: background 0.18s, color 0.18s;
++}
++.lmc-copy:hover,
++.lmc-copy.is-copied {
++    color: #fff;
++    background: rgba(99, 201, 74, 0.24);
++}
++.lmc-copy svg,
++.lmc-btn svg {
++    width: 14px;
++    height: 14px;
++    flex: none;
++}
++/* 进入官网按钮 + 在线人数 */
++.lmc-foot {
++    display: flex;
++    align-items: center;
++    flex-wrap: wrap;
++    gap: 14px 20px;
++    margin-top: 24px;
++}
++.lmc-btn {
++    display: inline-flex;
++    align-items: center;
++    gap: 9px;
++    padding: 12px 20px;
++    font-size: 0.95rem;
++    font-weight: 800;
++    color: #08130a;
++    text-decoration: none;
++    background: linear-gradient(180deg, #8ae66c 0%, #5fc247 55%, #4fb03a 100%);
++    border: 1px solid #0a1207;
++    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -3px 0 rgba(0, 0, 0, 0.22), 0 5px 0 #2b6a1e;
++    transition: transform 0.12s, box-shadow 0.12s, filter 0.18s;
++}
++.lmc-btn:hover {
++    filter: brightness(1.06);
++}
++.lmc-btn:active {
++    transform: translateY(4px);
++    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.3), inset 0 -2px 0 rgba(0, 0, 0, 0.25), 0 1px 0 #2b6a1e;
++}
++.lmc-live {
++    display: inline-flex;
++    align-items: center;
++    gap: 9px;
++    font-size: 0.85rem;
++    color: var(--lmc-muted);
++}
++.lmc-live[hidden] {
++    display: none;
++}
++.lmc-live i {
++    width: 8px;
++    height: 8px;
++    background: var(--lmc-grass);
++    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45), 0 0 12px rgba(99, 201, 74, 0.85);
++}
++.lmc-live.off i {
++    background: #e85d5d;
++    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45), 0 0 12px rgba(232, 93, 93, 0.6);
++}
++/* 插画：夜空里漂浮的草方块 */
++.lmc-art {
++    position: relative;
++    z-index: 1;
++    display: grid;
++    place-items: center;
++    min-height: 300px;
++    padding: 12px 12px 30px;
++    background:
++        radial-gradient(circle at 50% 54%, rgba(99, 201, 74, 0.24), rgba(99, 201, 74, 0.05) 42%, transparent 66%),
++        radial-gradient(1.5px 1.5px at 12% 16%, rgba(255, 255, 255, 0.55), transparent),
++        radial-gradient(1.5px 1.5px at 34% 8%, rgba(255, 255, 255, 0.35), transparent),
++        radial-gradient(2px 2px at 64% 12%, rgba(255, 255, 255, 0.45), transparent),
++        radial-gradient(1.5px 1.5px at 88% 30%, rgba(255, 255, 255, 0.4), transparent),
++        radial-gradient(1.5px 1.5px at 8% 60%, rgba(255, 255, 255, 0.3), transparent);
++}
++.lmc-art svg {
++    width: min(100%, 460px);
++    height: auto;
++    filter: drop-shadow(0 26px 26px rgba(0, 0, 0, 0.4));
++}
++.lmc-tag {
++    position: absolute;
++    z-index: 2;
++    display: inline-flex;
++    align-items: center;
++    gap: 7px;
++    padding: 7px 9px;
++    font-family: var(--lmc-pixel);
++    font-size: 8px;
++    line-height: 1;
++    letter-spacing: 0.8px;
++    color: #c7d0dd;
++    background: rgba(12, 16, 23, 0.9);
++    border: 1px solid var(--lmc-line);
++    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.32);
++}
++.lmc-tag::before {
++    content: '';
++    width: 6px;
++    height: 6px;
++    background: var(--lmc-grass);
++}
++.lmc-tag:first-child {
++    top: 14%;
++    left: 6%;
++}
++.lmc-tag--gold {
++    top: 30%;
++    right: 6%;
++    color: #f2c14e;
++    border-color: rgba(242, 193, 78, 0.4);
++}
++.lmc-tag--gold::before {
++    background: #f2c14e;
++}
++@keyframes lmc-bob {
++    0%, 100% { transform: translateY(0); }
++    50% { transform: translateY(-10px); }
++}
++@media (prefers-reduced-motion: no-preference) {
++    .lmc-bob {
++        animation: lmc-bob 7s ease-in-out infinite;
++    }
++    .lmc-bob--b {
++        animation-duration: 5.6s;
++        animation-delay: -1.6s;
++    }
++    .lmc-bob--c {
++        animation-duration: 6.4s;
++        animation-delay: -3.2s;
++    }
++}
++@media (max-width: 768px) {
++    .lmc {
++        grid-template-columns: 1fr;
++    }
++    .lmc-art {
++        order: -1;
++        min-height: 0;
++        height: 200px;
++        padding: 10px 0 0;
++    }
++    .lmc-art svg {
++        width: auto;
++        height: 100%;
++    }
++    .lmc-tag {
++        font-size: 7px;
++    }
++    .lmc-body {
++        padding: 6px 20px 60px;
++    }
++    .lmc-wordmark {
++        margin-top: 16px;
++        font-size: 1.25rem;
++    }
++    .lmc h3 {
++        font-size: 1.05rem;
++    }
++}
++@media (max-width: 420px) {
++    .lmc-ip {
++        flex-wrap: wrap;
++    }
++    .lmc-copy {
++        width: 100%;
++        justify-content: center;
++    }
++}
++
++/* 页脚里的“官方”小标签（与 LongerMC 卡片同款） */
++.tag-official {
++    display: inline-block;
++    margin-left: 6px;
++    padding: 0 5px;
++    font-size: 0.75rem;
++    font-weight: 700;
++    line-height: 1.6;
++    color: #08130a;
++    text-shadow: none;
++    background: #63c94a;
++    border: 1px solid #0a1207;
++    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
++}
++
++
++
+ /* 响应式设计 */
+ @media (max-width: 768px) {
+     
+diff --git a/fonts/Press Start 2P/OFL.txt b/fonts/Press Start 2P/OFL.txt
+new file mode 100644
+index 0000000..22796df
+--- /dev/null
++++ b/fonts/Press Start 2P/OFL.txt	
+@@ -0,0 +1,93 @@
++Copyright 2012 The Press Start 2P Project Authors (cody@zone38.net), with Reserved Font Name "Press Start 2P".
++
++This Font Software is licensed under the SIL Open Font License, Version 1.1.
++This license is copied below, and is also available with a FAQ at:
++http://scripts.sil.org/OFL
++
++
++-----------------------------------------------------------
++SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
++-----------------------------------------------------------
++
++PREAMBLE
++The goals of the Open Font License (OFL) are to stimulate worldwide
++development of collaborative font projects, to support the font creation
++efforts of academic and linguistic communities, and to provide a free and
++open framework in which fonts may be shared and improved in partnership
++with others.
++
++The OFL allows the licensed fonts to be used, studied, modified and
++redistributed freely as long as they are not sold by themselves. The
++fonts, including any derivative works, can be bundled, embedded, 
++redistributed and/or sold with any software provided that any reserved
++names are not used by derivative works. The fonts and derivatives,
++however, cannot be released under any other type of license. The
++requirement for fonts to remain under this license does not apply
++to any document created using the fonts or their derivatives.
++
++DEFINITIONS
++"Font Software" refers to the set of files released by the Copyright
++Holder(s) under this license and clearly marked as such. This may
++include source files, build scripts and documentation.
++
++"Reserved Font Name" refers to any names specified as such after the
++copyright statement(s).
++
++"Original Version" refers to the collection of Font Software components as
++distributed by the Copyright Holder(s).
++
++"Modified Version" refers to any derivative made by adding to, deleting,
++or substituting -- in part or in whole -- any of the components of the
++Original Version, by changing formats or by porting the Font Software to a
++new environment.
++
++"Author" refers to any designer, engineer, programmer, technical
++writer or other person who contributed to the Font Software.
++
++PERMISSION & CONDITIONS
++Permission is hereby granted, free of charge, to any person obtaining
++a copy of the Font Software, to use, study, copy, merge, embed, modify,
++redistribute, and sell modified and unmodified copies of the Font
++Software, subject to the following conditions:
++
++1) Neither the Font Software nor any of its individual components,
++in Original or Modified Versions, may be sold by itself.
++
++2) Original or Modified Versions of the Font Software may be bundled,
++redistributed and/or sold with any software, provided that each copy
++contains the above copyright notice and this license. These can be
++included either as stand-alone text files, human-readable headers or
++in the appropriate machine-readable metadata fields within text or
++binary files as long as those fields can be easily viewed by the user.
++
++3) No Modified Version of the Font Software may use the Reserved Font
++Name(s) unless explicit written permission is granted by the corresponding
++Copyright Holder. This restriction only applies to the primary font name as
++presented to the users.
++
++4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
++Software shall not be used to promote, endorse or advertise any
++Modified Version, except to acknowledge the contribution(s) of the
++Copyright Holder(s) and the Author(s) or with their explicit written
++permission.
++
++5) The Font Software, modified or unmodified, in part or in whole,
++must be distributed entirely under this license, and must not be
++distributed under any other license. The requirement for fonts to
++remain under this license does not apply to any document created
++using the Font Software.
++
++TERMINATION
++This license becomes null and void if any of the above conditions are
++not met.
++
++DISCLAIMER
++THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
++MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
++OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
++COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
++DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
++OTHER DEALINGS IN THE FONT SOFTWARE.
+\ No newline at end of file
+diff --git a/fonts/Press Start 2P/PressStart2P-Regular.woff2 b/fonts/Press Start 2P/PressStart2P-Regular.woff2
+new file mode 100644
+index 0000000000000000000000000000000000000000..947a9792df962367ce85b81182fdb07be1eaced1
+GIT binary patch
+literal 12512
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/js/ad.js b/js/ad.js
+index 50c654c..69cdb57 100644
+--- a/js/ad.js
++++ b/js/ad.js
+@@ -2,7 +2,83 @@ fetch('/partials/ad.html')
+   .then(response => response.text())
+   .then(data => {
+     document.getElementById('ad').innerHTML = data;
++    initLongerMC();
+   })
+   .catch(error => {
+     console.error('Error loading ad:', error);
+-  })
+\ No newline at end of file
++  })
++
++// 官方推荐：LongerMC 卡片（复制服务器地址 + 在线人数）
++function initLongerMC() {
++  const card = document.getElementById('lmc');
++  if (!card) return;
++
++  // 复制服务器地址
++  const copyBtn = card.querySelector('[data-lmc-copy]');
++  const copyLabel = copyBtn.querySelector('span');
++  copyBtn.addEventListener('click', () => {
++    const text = copyBtn.dataset.lmcCopy;
++    const show = ok => {
++      copyLabel.textContent = ok ? '已复制' : '请手动复制';
++      copyBtn.classList.toggle('is-copied', ok);
++      setTimeout(() => {
++        copyLabel.textContent = '复制';
++        copyBtn.classList.remove('is-copied');
++      }, 1800);
++    };
++    copyText(text).then(() => show(true), () => show(false));
++  });
++
++  // 在线人数：卡片快滚到眼前时才请求一次，拿不到就不显示
++  const live = card.querySelector('.lmc-live');
++  const loadStatus = () => {
++    const ctrl = new AbortController();
++    setTimeout(() => ctrl.abort(), 8000);
++    fetch('https://api.mcsrvstat.us/3/play.mc.longer.xin', { signal: ctrl.signal })
++      .then(response => {
++        if (!response.ok) throw new Error('HTTP ' + response.status);
++        return response.json();
++      })
++      .then(data => {
++        const players = data.players || {};
++        const count = players.max ? `${players.online || 0} / ${players.max}` : `${players.online || 0}`;
++        live.lastElementChild.textContent = data.online ? `服务器在线 · ${count} 位玩家` : '服务器维护中';
++        live.classList.toggle('off', !data.online);
++        live.hidden = false;
++      })
++      .catch(() => {});
++  };
++
++  if ('IntersectionObserver' in window) {
++    const io = new IntersectionObserver(entries => {
++      if (!entries.some(entry => entry.isIntersecting)) return;
++      io.disconnect();
++      loadStatus();
++    }, { rootMargin: '200px' });
++    io.observe(card);
++  } else {
++    loadStatus();
++  }
++}
++
++function copyText(text) {
++  if (navigator.clipboard && window.isSecureContext) {
++    return navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
++  }
++  return fallbackCopy(text);
++}
++
++function fallbackCopy(text) {
++  return new Promise((resolve, reject) => {
++    const textarea = document.createElement('textarea');
++    textarea.value = text;
++    textarea.setAttribute('readonly', '');
++    textarea.style.cssText = 'position: fixed; top: -1000px; opacity: 0;';
++    document.body.appendChild(textarea);
++    textarea.select();
++    let ok = false;
++    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
++    textarea.remove();
++    ok ? resolve() : reject(new Error('copy failed'));
++  });
++}
+diff --git a/partials/ad.html b/partials/ad.html
+index 9fbc4e5..227b4da 100644
+--- a/partials/ad.html
++++ b/partials/ad.html
+@@ -3,6 +3,119 @@
+     <div class="container">
+         <h2><b>推荐内容</b></h2>
+         <p style="justify-self: center;">您可能感兴趣的其它内容</p>
++
++        <!-- 官方推荐：站长自己的 Minecraft 服务器。外框跟随本站（圆角、发光、悬停放大），里面是 mc.longer.xin 的像素风 -->
++        <div class="lmc" id="lmc">
++            <div class="lmc-body">
++                <div class="lmc-tags">
++                    <span class="lmc-official">官方</span>
++                    <span>站长自己的服务器</span>
++                </div>
++                <p class="lmc-wordmark">LONGER<em>MC</em></p>
++                <h3>龙ger_longer の神奇 <span>Minecraft</span> 生存服务器</h3>
++                <p class="lmc-desc">Java 版 1.21.11 原版生存，领地保护、箱子商店、跨版本进入，长期存档。非营利、无充值，复制地址就能玩。</p>
++                <div class="lmc-ip">
++                    <span class="lmc-ip-text">
++                        <span class="lmc-label">SERVER ADDRESS</span>
++                        <code>play.mc.longer.xin</code>
++                    </span>
++                    <button class="lmc-copy" type="button" data-lmc-copy="play.mc.longer.xin" aria-label="复制服务器地址 play.mc.longer.xin">
++                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h11v14h-4M4 8h11v13H4z" fill="none" stroke="currentColor" stroke-width="2"/></svg>
++                        <span>复制</span>
++                    </button>
++                </div>
++                <div class="lmc-foot">
++                    <a class="lmc-btn" href="https://mc.longer.xin/" target="_blank">
++                        进入服务器官网
++                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h16M13 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2"/></svg>
++                    </a>
++                    <span class="lmc-live" hidden><i></i><span></span></span>
++                </div>
++            </div>
++            <div class="lmc-art" aria-hidden="true">
++                <span class="lmc-tag">SURVIVAL</span>
++                <span class="lmc-tag lmc-tag--gold">1.21.11</span>
++                <svg viewBox="0 0 400 300">
++                    <defs>
++                        <linearGradient id="lmc-g-top" x1="0" y1="0" x2=".4" y2="1"><stop offset="0" stop-color="#8ae66c"/><stop offset="1" stop-color="#57ad3f"/></linearGradient>
++                        <linearGradient id="lmc-g-dirt-l" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6d4830"/><stop offset="1" stop-color="#523524"/></linearGradient>
++                        <linearGradient id="lmc-g-dirt-r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a5c3b"/><stop offset="1" stop-color="#68432b"/></linearGradient>
++                        <linearGradient id="lmc-g-stone-top" x1="0" y1="0" x2=".4" y2="1"><stop offset="0" stop-color="#a3b0c2"/><stop offset="1" stop-color="#76839a"/></linearGradient>
++                        <linearGradient id="lmc-g-stone-l" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4d586b"/><stop offset="1" stop-color="#3b4554"/></linearGradient>
++                        <linearGradient id="lmc-g-stone-r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#626e82"/><stop offset="1" stop-color="#4a5568"/></linearGradient>
++                        <radialGradient id="lmc-g-shadow"><stop offset="0" stop-color="#000" stop-opacity=".55"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
++                        <g id="lmc-grass">
++                            <polygon points="0,-48 96,0 0,48 -96,0" fill="url(#lmc-g-top)"/>
++                            <polygon points="-96,0 0,48 0,118 -96,70" fill="url(#lmc-g-dirt-l)"/>
++                            <polygon points="0,48 96,0 96,70 0,118" fill="url(#lmc-g-dirt-r)"/>
++                            <polygon points="-96,0 0,48 0,62 -96,14" fill="#63c94a"/>
++                            <polygon points="0,48 96,0 96,14 0,62" fill="#4fa83a"/>
++                            <path d="M-40,-20 l14,7 -14,7 -14,-7z" fill="#a6f28b" opacity=".5"/>
++                            <path d="M24,-8 l12,6 -12,6 -12,-6z" fill="#4a9a35" opacity=".45"/>
++                            <path d="M-76,30 l12,6 -12,6 -12,-6z" fill="#3f2719" opacity=".4"/>
++                            <path d="M46,40 l12,6 -12,6 -12,-6z" fill="#4b2d1c" opacity=".28"/>
++                        </g>
++                        <g id="lmc-stone">
++                            <polygon points="0,-48 96,0 0,48 -96,0" fill="url(#lmc-g-stone-top)"/>
++                            <polygon points="-96,0 0,48 0,118 -96,70" fill="url(#lmc-g-stone-l)"/>
++                            <polygon points="0,48 96,0 96,70 0,118" fill="url(#lmc-g-stone-r)"/>
++                        </g>
++                    </defs>
++                    <ellipse cx="200" cy="262" rx="124" ry="20" fill="url(#lmc-g-shadow)"/>
++                    <g class="lmc-bob">
++                        <use href="#lmc-grass" transform="translate(200 146) scale(.82)"/>
++                        <!-- 方块上的橡树 -->
++                        <g transform="translate(170 104) scale(.72)">
++                            <rect x="14" y="18" width="8" height="26" fill="#4a2c1a"/>
++                            <rect x="16" y="18" width="2" height="26" fill="#6b4026"/>
++                            <rect x="0" y="10" width="36" height="8" fill="#35702a"/>
++                            <rect x="0" y="2" width="36" height="8" fill="#3f8a2f"/>
++                            <rect x="6" y="-8" width="24" height="10" fill="#4aa338"/>
++                            <rect x="12" y="-16" width="12" height="8" fill="#5cbb45"/>
++                        </g>
++                        <!-- 方块上的小猫 -->
++                        <g transform="translate(230 136) scale(.82)">
++                            <rect x="-11" y="-14" width="4" height="4" fill="#e8b76a"/>
++                            <rect x="-9" y="-14" width="13" height="14" fill="#e8b76a"/>
++                            <rect x="-2" y="-24" width="14" height="12" fill="#f0c97e"/>
++                            <rect x="-2" y="-28" width="4" height="4" fill="#f0c97e"/>
++                            <rect x="8" y="-28" width="4" height="4" fill="#f0c97e"/>
++                            <rect x="1" y="-21" width="3" height="3" fill="#57a64a"/>
++                            <rect x="7" y="-21" width="3" height="3" fill="#57a64a"/>
++                            <rect x="-9" y="0" width="5" height="4" fill="#d9a54f"/>
++                            <rect x="0" y="0" width="5" height="4" fill="#d9a54f"/>
++                        </g>
++                    </g>
++                    <!-- 漂浮的钻石矿与金矿 -->
++                    <g class="lmc-bob lmc-bob--b">
++                        <use href="#lmc-stone" transform="translate(72 88) scale(.34)"/>
++                        <g transform="translate(72 88) scale(.34)">
++                            <path d="M-18,-12 l13,7 -13,7 -13,-7z" fill="#65dbe8"/>
++                            <path d="M38,4 l10,6 -10,6 -10,-6z" fill="#3fbccd"/>
++                            <path d="M-58,38 l11,7 -11,7 -11,-7z" fill="#5ad2df"/>
++                            <path d="M34,66 l11,7 -11,7 -11,-7z" fill="#3fbccd"/>
++                        </g>
++                    </g>
++                    <g class="lmc-bob lmc-bob--c">
++                        <use href="#lmc-stone" transform="translate(338 196) scale(.27)"/>
++                        <g transform="translate(338 196) scale(.27)">
++                            <path d="M-24,-10 l13,7 -13,7 -13,-7z" fill="#f2c14e"/>
++                            <path d="M32,2 l10,6 -10,6 -10,-6z" fill="#d9a531"/>
++                            <path d="M-52,44 l11,7 -11,7 -11,-7z" fill="#f2c14e"/>
++                            <path d="M30,70 l11,7 -11,7 -11,-7z" fill="#d9a531"/>
++                        </g>
++                    </g>
++                    <g fill="#8ae66f">
++                        <rect x="40" y="186" width="6" height="6"/>
++                        <rect x="120" y="42" width="5" height="5"/>
++                        <rect x="352" y="96" width="5" height="5"/>
++                        <rect x="300" y="44" width="4" height="4" fill="#f2c14e"/>
++                        <rect x="96" y="240" width="4" height="4" fill="#f2c14e"/>
++                    </g>
++                </svg>
++            </div>
++        </div>
++
+         <div class="product-intros" style="margin-top: 36px;">
+             <a href="/404-submit/" target="_blank" class="product-intro" style="padding: 0;">
+                 <img src="/assets/images/ads/404-submit.webp" style="width: 100%; height: auto;object-fit: cover;">
+diff --git a/partials/footer.html b/partials/footer.html
+index b8173d7..fbe792a 100644
+--- a/partials/footer.html
++++ b/partials/footer.html
+@@ -38,6 +38,7 @@
+         <div class="show row">
+             <h2>友情链接及更多推荐</h2>
+             <ul>
++                <li><a href="https://mc.longer.xin/" target="_blank">LongerMC：Minecraft 生存服务器<span class="tag-official">官方</span></a></li>
+                 <li><a href="https://www.bilibili.com" target="_blank">哔哩哔哩</a></li>
+                 <li><a href="https://www.github.com/new5fpointer/Traynex" target="_blank">Traynex：窗口管理工具（GitHub仓库）</a></li>
+             </ul>
+-- 
+2.43.0
+
